@@ -1,26 +1,57 @@
 import { supabase } from "@/lib/supabase";
 
-// We don't check-then-insert (that has a time-of-check-to-time-of-use race).
-// We just try to insert and let the unique(question_id, voter_id) constraint
-// be the referee — it's enforced atomically as part of the insert.
 export async function POST(
   req: Request,
   { params }: { params: Promise<{ id: string }> }
 ) {
-  const { id: questionId } = await params;
   const { voterId } = await req.json();
+  const { id: questionId } = await params;
 
-  const { error } = await supabase
+  // Check whether this user already voted
+  const { data: existingVote } = await supabase
     .from("votes")
-    .insert({ question_id: questionId, voter_id: voterId });
+    .select("id")
+    .eq("question_id", questionId)
+    .eq("voter_id", voterId)
+    .maybeSingle();
 
-  if (error) {
-    if (error.code === "23505") {
-      // Postgres unique violation → this voter already voted on this question.
-      return Response.json({ error: "already voted" }, { status: 409 });
+  // Vote exists → remove it
+  if (existingVote) {
+    const { error } = await supabase
+      .from("votes")
+      .delete()
+      .eq("id", existingVote.id);
+
+    if (error) {
+      return Response.json(
+        { error: error.message },
+        { status: 500 }
+      );
     }
-    return Response.json({ error: error.message }, { status: 500 });
+
+    return Response.json({
+      success: true,
+      action: "removed",
+    });
   }
 
-  return Response.json({ ok: true });
+  // Vote doesn't exist → add it
+  const { error } = await supabase
+    .from("votes")
+    .insert({
+      question_id: questionId,
+      voter_id: voterId,
+    });
+
+  if (error) {
+    return Response.json(
+      { error: error.message },
+      { status: 500 }
+    );
+  }
+
+  return Response.json({
+    success: true,
+    action: "added",
+  });
 }
