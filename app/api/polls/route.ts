@@ -3,41 +3,62 @@ import { supabase } from "@/lib/supabase";
 /* ---------------- GET POLLS ---------------- */
 export async function GET() {
   try {
-    const { data, error } = await supabase
+    // fetch polls
+    const { data: polls, error } = await supabase
       .from("polls")
-      .select("*, poll_votes(option_index)");
+      .select("*");
 
     if (error) {
-      console.error("GET POLLS ERROR:", error);
-      return Response.json({ polls: [] }, { status: 200 });
+      return Response.json(
+        { error: error.message, polls: [] },
+        { status: 200 }
+      );
     }
 
-    const formatted = (data || []).map((poll) => {
+    // fetch all votes separately
+    const { data: votes, error: voteError } = await supabase
+      .from("poll_votes")
+      .select("*");
+
+    if (voteError) {
+      return Response.json(
+        { error: voteError.message, polls: [] },
+        { status: 200 }
+      );
+    }
+
+    const formatted = (polls || []).map((poll) => {
+      // normalize options (jsonb safe)
       const options = Array.isArray(poll.options)
         ? poll.options
         : Object.values(poll.options || {});
 
       const voteCounts = Array(options.length).fill(0);
 
-      poll.poll_votes?.forEach((v: any) => {
-        voteCounts[v.option_index] =
-          (voteCounts[v.option_index] || 0) + 1;
-      });
+      const relatedVotes = (votes || []).filter(
+        (v) => v.poll_id === poll.id
+      );
 
-      const totalVotes = voteCounts.reduce((a, b) => a + b, 0);
+      relatedVotes.forEach((v) => {
+        if (voteCounts[v.option_index] !== undefined) {
+          voteCounts[v.option_index]++;
+        }
+      });
 
       return {
         ...poll,
         options,
         voteCounts,
-        totalVotes,
+        totalVotes: relatedVotes.length,
       };
     });
 
     return Response.json({ polls: formatted });
-  } catch (err) {
-    console.error("GET POLLS CRASH:", err);
-    return Response.json({ polls: [] }, { status: 200 });
+  } catch (err: any) {
+    return Response.json(
+      { error: err.message || "Server error", polls: [] },
+      { status: 200 }
+    );
   }
 }
 
@@ -67,7 +88,8 @@ export async function POST(req: Request) {
       .single();
 
     if (error) {
-      console.error("POST POLL ERROR:", error);
+      console.error("CREATE POLL ERROR:", error);
+
       return Response.json(
         { error: error.message },
         { status: 500 }
@@ -76,7 +98,8 @@ export async function POST(req: Request) {
 
     return Response.json(data);
   } catch (err: any) {
-    console.error("POST POLL CRASH:", err);
+    console.error("CREATE POLL CRASH:", err);
+
     return Response.json(
       { error: err.message || "Server crash" },
       { status: 500 }
