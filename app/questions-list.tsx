@@ -36,14 +36,18 @@ export default function QuestionsList({
   const [pollQuestion, setPollQuestion] = useState("");
   const [pollOptions, setPollOptions] = useState(["", ""]);
 
-  // ---------------- UI ----------------
+  // 🔥 NEW: track user's selected vote per poll
+  const [userVotes, setUserVotes] = useState<Record<string, number | null>>(
+    {}
+  );
+
   const [hydrated, setHydrated] = useState(false);
 
   useEffect(() => {
     setHydrated(true);
   }, []);
 
-  // ---------------- FETCH QUESTIONS (SEARCH) ----------------
+  // ---------------- QUESTIONS FETCH ----------------
   useEffect(() => {
     const id = setTimeout(async () => {
       const url = query
@@ -60,14 +64,14 @@ export default function QuestionsList({
     return () => clearTimeout(id);
   }, [query]);
 
-  // ---------------- FETCH POLLS ----------------
+  // ---------------- POLLS FETCH ----------------
   useEffect(() => {
     fetch("/api/polls")
       .then((r) => r.json())
       .then((d) => setPolls(d.polls));
   }, []);
 
-  // ---------------- QUESTION ACTIONS ----------------
+  // ---------------- QUESTIONS ----------------
   async function submit() {
     if (!draft.trim()) return;
 
@@ -117,10 +121,7 @@ export default function QuestionsList({
   async function loadMore() {
     setLoading(true);
 
-    const res = await fetch(
-      `/api/questions?offset=${questions.length}`
-    );
-
+    const res = await fetch(`/api/questions?offset=${questions.length}`);
     const data = await res.json();
 
     setQuestions((qs) => [...qs, ...data.questions]);
@@ -129,7 +130,59 @@ export default function QuestionsList({
     setLoading(false);
   }
 
-  // ---------------- POLL ACTIONS ----------------
+  // ---------------- POLLS FIXED LOGIC ----------------
+  async function votePoll(pollId: string, optionIndex: number) {
+    const res = await fetch(`/api/polls/${pollId}/vote`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        voterId: getVoterId(),
+        optionIndex,
+      }),
+    });
+
+    const data = await res.json();
+
+    if (!res.ok) {
+      alert(data.error || "Poll vote failed");
+      return;
+    }
+
+    // 🔥 UPDATE USER VOTE STATE (IMPORTANT FIX)
+    setUserVotes((prev) => {
+      const current = prev[pollId];
+
+      if (data.action === "added") {
+        return { ...prev, [pollId]: optionIndex };
+      }
+
+      if (data.action === "removed") {
+        return { ...prev, [pollId]: null };
+      }
+
+      if (data.action === "switched") {
+        return { ...prev, [pollId]: optionIndex };
+      }
+
+      return prev;
+    });
+
+    // 🔥 OPTIONAL SAFE UI UPDATE
+    setPolls((prev) =>
+      prev.map((p) => {
+        if (p.id !== pollId) return p;
+
+        const updated = { ...p };
+
+        if (!updated.voteCounts) {
+          updated.voteCounts = Array(updated.options.length).fill(0);
+        }
+
+        return updated;
+      })
+    );
+  }
+
   async function createPoll() {
     if (!pollQuestion.trim()) return;
 
@@ -149,46 +202,14 @@ export default function QuestionsList({
     setPollOptions(["", ""]);
   }
 
-  async function votePoll(pollId: string, optionIndex: number) {
-    const res = await fetch(`/api/polls/${pollId}/vote`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        voterId: getVoterId(),
-        optionIndex,
-      }),
-    });
-
-    const data = await res.json();
-
-    setPolls((prev) =>
-      prev.map((p) => {
-        if (p.id !== pollId) return p;
-
-        const updated = { ...p };
-
-        if (!updated.voteCounts)
-          updated.voteCounts = Array(updated.options.length).fill(0);
-
-        if (data.action === "added") {
-          updated.voteCounts[optionIndex] =
-            (updated.voteCounts[optionIndex] || 0) + 1;
-        }
-
-        return updated;
-      })
-    );
-  }
-
   // ---------------- UI ----------------
   return (
     <div className="space-y-6">
-
       <p className="text-sm text-gray-400">
         {hydrated ? "Interactive ✓" : "Loading interactivity…"}
       </p>
 
-      {/* ---------------- ASK QUESTION ---------------- */}
+      {/* QUESTIONS */}
       <div className="flex gap-2">
         <input
           value={draft}
@@ -196,16 +217,14 @@ export default function QuestionsList({
           placeholder="Ask a question..."
           className="flex-1 rounded-md border border-white/10 bg-white/5 px-3 py-2 text-white outline-none"
         />
-
         <button
           onClick={submit}
-          className="rounded-md border border-white/10 bg-white/5 px-4 py-2 hover:bg-white/10 transition"
+          className="rounded-md border border-white/10 bg-white/5 px-4 py-2 hover:bg-white/10"
         >
           Ask
         </button>
       </div>
 
-      {/* ---------------- SEARCH ---------------- */}
       <input
         value={query}
         onChange={(e) => setQuery(e.target.value)}
@@ -213,20 +232,18 @@ export default function QuestionsList({
         className="w-full rounded-md border border-white/10 bg-white/5 px-3 py-2 text-white outline-none"
       />
 
-      {/* ---------------- QUESTIONS LIST ---------------- */}
       <ul className="space-y-3">
         {questions.map((q) => (
           <li
             key={q.id}
-            className="flex items-center gap-3 rounded-xl border border-white/10 bg-white/5 p-4 hover:bg-white/10 transition"
+            className="flex items-center gap-3 rounded-xl border border-white/10 bg-white/5 p-4 hover:bg-white/10"
           >
             <button
               onClick={() => upvote(q.id)}
-              className="rounded-md border border-white/10 bg-white/10 px-3 py-1 font-mono hover:bg-white/20"
+              className="rounded-md border border-white/10 bg-white/10 px-3 py-1 font-mono"
             >
               ▲ {q.votes}
             </button>
-
             <span className="text-white">{q.body}</span>
           </li>
         ))}
@@ -236,17 +253,17 @@ export default function QuestionsList({
         <button
           onClick={loadMore}
           disabled={loading}
-          className="rounded-md border border-white/10 bg-white/5 px-4 py-2 hover:bg-white/10 disabled:opacity-50"
+          className="rounded-md border border-white/10 bg-white/5 px-4 py-2"
         >
           {loading ? "Loading..." : "Load More"}
         </button>
       )}
 
-      {/* ---------------- POLLS SECTION ---------------- */}
+      {/* POLLS */}
       <div className="mt-10 space-y-4">
         <h2 className="text-xl font-medium">Polls</h2>
 
-        {/* CREATE POLL */}
+        {/* CREATE */}
         <div className="space-y-2 rounded-xl border border-white/10 bg-white/5 p-4">
           <input
             value={pollQuestion}
@@ -284,7 +301,7 @@ export default function QuestionsList({
           </button>
         </div>
 
-        {/* POLL LIST */}
+        {/* LIST */}
         {polls.map((poll) => (
           <div
             key={poll.id}
@@ -296,7 +313,11 @@ export default function QuestionsList({
               <button
                 key={i}
                 onClick={() => votePoll(poll.id, i)}
-                className="w-full flex justify-between p-2 rounded-md hover:bg-white/10"
+                className={`w-full flex justify-between p-2 rounded-md ${
+                  userVotes[poll.id] === i
+                    ? "bg-blue-500/30 border border-blue-400"
+                    : "hover:bg-white/10"
+                }`}
               >
                 <span>{opt}</span>
                 <span className="text-gray-400">
