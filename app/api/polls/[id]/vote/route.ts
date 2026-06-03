@@ -1,24 +1,21 @@
 import { supabase } from "@/lib/supabase";
 
-export async function POST(
-  req: Request,
-  { params }: { params: { id: string } }
-) {
+export async function POST(req: Request, context: any) {
   try {
-    const { voterId, optionIndex } = await req.json();
-    const pollId = params.id;
+    const pollId = context?.params?.id;
 
-    // 🔥 DEBUG SAFETY (prevents invalid uuid crash)
-    if (!pollId || typeof pollId !== "string") {
+    if (!pollId) {
       return Response.json(
-        { error: "Invalid poll id" },
+        { error: "Invalid poll id (missing param)" },
         { status: 400 }
       );
     }
 
-    if (optionIndex === undefined || !voterId) {
+    const { voterId, optionIndex } = await req.json();
+
+    if (!voterId || optionIndex === undefined) {
       return Response.json(
-        { error: "Missing data" },
+        { error: "Missing vote data" },
         { status: 400 }
       );
     }
@@ -38,7 +35,7 @@ export async function POST(
       );
     }
 
-    /* ---------------- CASE 1: NO VOTE ---------------- */
+    // CASE 1: NEW VOTE
     if (!existing) {
       const { error } = await supabase.from("poll_votes").insert({
         poll_id: pollId,
@@ -53,13 +50,10 @@ export async function POST(
         );
       }
 
-      return Response.json({
-        action: "added",
-        optionIndex,
-      });
+      return Response.json({ action: "added" });
     }
 
-    /* ---------------- CASE 2: SAME OPTION (TOGGLE OFF) ---------------- */
+    // CASE 2: TOGGLE OFF SAME OPTION
     if (existing.option_index === optionIndex) {
       const { error } = await supabase
         .from("poll_votes")
@@ -73,24 +67,14 @@ export async function POST(
         );
       }
 
-      return Response.json({
-        action: "removed",
-        optionIndex,
-      });
+      return Response.json({ action: "removed" });
     }
 
-    /* ---------------- CASE 3: SWITCH VOTE ---------------- */
-    const { error: deleteError } = await supabase
+    // CASE 3: SWITCH VOTE
+    await supabase
       .from("poll_votes")
       .delete()
       .eq("id", existing.id);
-
-    if (deleteError) {
-      return Response.json(
-        { error: deleteError.message },
-        { status: 500 }
-      );
-    }
 
     const { error: insertError } = await supabase
       .from("poll_votes")
@@ -107,11 +91,7 @@ export async function POST(
       );
     }
 
-    return Response.json({
-      action: "switched",
-      optionIndex,
-      previousOption: existing.option_index,
-    });
+    return Response.json({ action: "switched" });
   } catch (err: any) {
     return Response.json(
       { error: err.message || "Server crash" },
