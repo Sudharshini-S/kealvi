@@ -1,23 +1,30 @@
 import { supabase } from "@/lib/supabase";
-import { getPolls } from "@/lib/polls";
 
 export async function GET() {
-  const polls = await getPolls();
-  return Response.json({ polls });
-}
-
-export async function POST(req: Request) {
-  const { question, options } = await req.json();
-
   const { data, error } = await supabase
     .from("polls")
-    .insert({ question, options })
-    .select()
-    .single();
+    .select("*, poll_votes(option_index)")
+    .order("created_at", { ascending: false });
 
   if (error) {
     return Response.json({ error: error.message }, { status: 500 });
   }
 
-  return Response.json(data);
+  const formatted = (data || []).map((poll) => {
+    const voteCounts = Array(poll.options.length).fill(0);
+
+    poll.poll_votes?.forEach((v: any) => {
+      voteCounts[v.option_index]++;
+    });
+
+    const totalVotes = voteCounts.reduce((a, b) => a + b, 0);
+
+    return {
+      ...poll,
+      voteCounts,
+      totalVotes, // 🔥 NEW
+    };
+  });
+
+  return Response.json({ polls: formatted });
 }
