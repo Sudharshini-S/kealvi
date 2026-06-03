@@ -1,5 +1,6 @@
 import { supabase } from "@/lib/supabase";
 
+/* ---------------- GET POLLS ---------------- */
 export async function GET() {
   try {
     const { data, error } = await supabase
@@ -11,16 +12,22 @@ export async function GET() {
     }
 
     const formatted = (data || []).map((poll) => {
-      const voteCounts = Array(poll.options.length).fill(0);
+      const options = Array.isArray(poll.options)
+        ? poll.options
+        : Object.values(poll.options || {});
+
+      const voteCounts = Array(options.length).fill(0);
 
       poll.poll_votes?.forEach((v: any) => {
-        voteCounts[v.option_index]++;
+        voteCounts[v.option_index] =
+          (voteCounts[v.option_index] || 0) + 1;
       });
 
       const totalVotes = voteCounts.reduce((a, b) => a + b, 0);
 
       return {
         ...poll,
+        options,
         voteCounts,
         totalVotes,
       };
@@ -35,6 +42,7 @@ export async function GET() {
   }
 }
 
+/* ---------------- CREATE POLL ---------------- */
 export async function POST(req: Request) {
   try {
     const { question, options } = await req.json();
@@ -54,9 +62,9 @@ export async function POST(req: Request) {
       .from("polls")
       .insert({
         question,
-        options: cleanOptions, // 🔥 important
+        options: cleanOptions,
       })
-      .select()
+      .select("id, question, options, created_at")
       .single();
 
     if (error) {
