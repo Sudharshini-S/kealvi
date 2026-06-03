@@ -37,14 +37,13 @@ export default function QuestionsList({
   const [pollQuestion, setPollQuestion] = useState("");
   const [pollOptions, setPollOptions] = useState(["", ""]);
 
-  // ---------------- UI ----------------
   const [hydrated, setHydrated] = useState(false);
 
   useEffect(() => {
     setHydrated(true);
   }, []);
 
-  // ---------------- FETCH QUESTIONS ----------------
+  // ---------------- QUESTIONS FETCH ----------------
   useEffect(() => {
     const id = setTimeout(async () => {
       const url = query
@@ -61,11 +60,11 @@ export default function QuestionsList({
     return () => clearTimeout(id);
   }, [query]);
 
-  // ---------------- FETCH POLLS ----------------
+  // ---------------- POLLS FETCH ----------------
   useEffect(() => {
     fetch("/api/polls")
       .then((r) => r.json())
-      .then((d) => setPolls(d.polls));
+      .then((d) => setPolls(d.polls || []));
   }, []);
 
   // ---------------- QUESTION ACTIONS ----------------
@@ -116,10 +115,7 @@ export default function QuestionsList({
   async function loadMore() {
     setLoading(true);
 
-    const res = await fetch(
-      `/api/questions?offset=${questions.length}`
-    );
-
+    const res = await fetch(`/api/questions?offset=${questions.length}`);
     const data = await res.json();
 
     setQuestions((qs) => [...qs, ...data.questions]);
@@ -128,7 +124,44 @@ export default function QuestionsList({
     setLoading(false);
   }
 
-  // ---------------- POLL ACTIONS ----------------
+  // ---------------- POLL CREATE (FIXED SAFE VERSION) ----------------
+  async function createPoll() {
+    if (!pollQuestion.trim()) return;
+
+    const res = await fetch("/api/polls", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        question: pollQuestion,
+        options: pollOptions.filter((o) => o.trim()),
+      }),
+    });
+
+    // 🔥 SAFE JSON HANDLING (FIX FOR YOUR ERROR)
+    const text = await res.text();
+
+    let data;
+    try {
+      data = JSON.parse(text);
+    } catch (err) {
+      console.error("❌ Invalid JSON from /api/polls:", text);
+      alert("Server error while creating poll");
+      return;
+    }
+
+    if (!res.ok) {
+      alert(data?.error || "Failed to create poll");
+      return;
+    }
+
+    setPolls((p) => [data, ...p]);
+    setPollQuestion("");
+    setPollOptions(["", ""]);
+  }
+
+  // ---------------- POLL VOTE ----------------
   async function votePoll(pollId: string, optionIndex: number) {
     const res = await fetch(`/api/polls/${pollId}/vote`, {
       method: "POST",
@@ -161,34 +194,14 @@ export default function QuestionsList({
     );
   }
 
-  async function createPoll() {
-    if (!pollQuestion.trim()) return;
-
-    const res = await fetch("/api/polls", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        question: pollQuestion,
-        options: pollOptions.filter((o) => o.trim()),
-      }),
-    });
-
-    const data = await res.json();
-
-    setPolls((p) => [data, ...p]);
-    setPollQuestion("");
-    setPollOptions(["", ""]);
-  }
-
   // ---------------- UI ----------------
   return (
     <div className="space-y-6">
-
       <p className="text-sm text-gray-400">
         {hydrated ? "Interactive ✓" : "Loading interactivity…"}
       </p>
 
-      {/* ---------------- QUESTIONS ---------------- */}
+      {/* QUESTIONS */}
       <div className="flex gap-2">
         <input
           value={draft}
@@ -238,7 +251,7 @@ export default function QuestionsList({
         </button>
       )}
 
-      {/* ---------------- POLLS ---------------- */}
+      {/* POLLS */}
       <div className="mt-10 space-y-4">
         <h2 className="text-xl font-medium">Polls</h2>
 
@@ -280,7 +293,7 @@ export default function QuestionsList({
           </button>
         </div>
 
-        {/* POLL LIST (WHATSAPP STYLE) */}
+        {/* POLL LIST */}
         {polls.map((poll) => {
           const total = poll.totalVotes || 0;
 
@@ -289,17 +302,12 @@ export default function QuestionsList({
               key={poll.id}
               className="rounded-xl border border-white/10 bg-white/5 p-4 space-y-3"
             >
-              {/* QUESTION */}
-              <p className="font-medium text-white">
-                {poll.question}
-              </p>
+              <p className="font-medium text-white">{poll.question}</p>
 
-              {/* TOTAL VOTES */}
               <p className="text-xs text-gray-400">
                 {total} vote{total !== 1 ? "s" : ""}
               </p>
 
-              {/* OPTIONS */}
               <div className="space-y-2">
                 {poll.options.map((opt, i) => {
                   const count = poll.voteCounts?.[i] || 0;
@@ -310,25 +318,20 @@ export default function QuestionsList({
                     <button
                       key={i}
                       onClick={() => votePoll(poll.id, i)}
-                      className="w-full text-left p-2 rounded-md hover:bg-white/10 transition"
+                      className="w-full text-left p-2 rounded-md hover:bg-white/10"
                     >
-                      {/* label */}
                       <div className="flex justify-between text-sm text-white">
                         <span>{opt}</span>
-                        <span className="text-gray-400">
-                          {percent}%
-                        </span>
+                        <span className="text-gray-400">{percent}%</span>
                       </div>
 
-                      {/* progress bar */}
                       <div className="mt-1 h-2 w-full bg-white/10 rounded-full overflow-hidden">
                         <div
-                          className="h-full bg-blue-500 transition-all"
+                          className="h-full bg-blue-500"
                           style={{ width: `${percent}%` }}
                         />
                       </div>
 
-                      {/* small count */}
                       <div className="text-xs text-gray-500 mt-1">
                         {count} vote{count !== 1 ? "s" : ""}
                       </div>
