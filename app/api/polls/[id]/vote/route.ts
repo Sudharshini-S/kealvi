@@ -2,9 +2,12 @@ import { supabase } from "@/lib/supabase";
 
 export async function POST(
   req: Request,
-  { params }: { params: { id: string } }
+  context: { params: Promise<{ id: string }> }
 ) {
-  const pollId = params.id;
+  try {
+    const { id: pollId } = await context.params;
+
+    console.log("pollId =", pollId);
 
     if (!pollId) {
       return Response.json(
@@ -15,6 +18,8 @@ export async function POST(
 
     const { voterId, optionIndex } = await req.json();
 
+    console.log("voterId =", voterId);
+
     if (!voterId) {
       return Response.json(
         { error: "Missing voter id" },
@@ -22,12 +27,19 @@ export async function POST(
       );
     }
 
-    const { data: existingVote } = await supabase
+    const { data: existingVote, error: findError } = await supabase
       .from("poll_votes")
       .select("*")
       .eq("poll_id", pollId)
       .eq("voter_id", voterId)
       .maybeSingle();
+
+    if (findError) {
+      return Response.json(
+        { error: findError.message },
+        { status: 500 }
+      );
+    }
 
     // First vote
     if (!existingVote) {
@@ -51,7 +63,7 @@ export async function POST(
       });
     }
 
-    // Click same option again -> remove vote
+    // Remove vote
     if (existingVote.option_index === optionIndex) {
       const { error } = await supabase
         .from("poll_votes")
@@ -91,6 +103,8 @@ export async function POST(
       optionIndex,
     });
   } catch (err: any) {
+    console.error(err);
+
     return Response.json(
       { error: err.message || "Server error" },
       { status: 500 }
