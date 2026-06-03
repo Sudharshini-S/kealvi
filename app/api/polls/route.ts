@@ -8,7 +8,8 @@ export async function GET() {
       .select("*, poll_votes(option_index)");
 
     if (error) {
-      return Response.json({ error: error.message }, { status: 500 });
+      console.error("GET POLLS ERROR:", error);
+      return Response.json({ polls: [] }, { status: 200 });
     }
 
     const formatted = (data || []).map((poll) => {
@@ -34,11 +35,9 @@ export async function GET() {
     });
 
     return Response.json({ polls: formatted });
-  } catch (err: any) {
-    return Response.json(
-      { error: err.message || "Server error" },
-      { status: 500 }
-    );
+  } catch (err) {
+    console.error("GET POLLS CRASH:", err);
+    return Response.json({ polls: [] }, { status: 200 });
   }
 }
 
@@ -68,6 +67,7 @@ export async function POST(req: Request) {
       .single();
 
     if (error) {
+      console.error("POST POLL ERROR:", error);
       return Response.json(
         { error: error.message },
         { status: 500 }
@@ -76,6 +76,7 @@ export async function POST(req: Request) {
 
     return Response.json(data);
   } catch (err: any) {
+    console.error("POST POLL CRASH:", err);
     return Response.json(
       { error: err.message || "Server crash" },
       { status: 500 }
