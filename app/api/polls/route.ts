@@ -7,10 +7,7 @@ export async function GET() {
       .select("*, poll_votes(option_index)");
 
     if (error) {
-      return Response.json(
-        { error: error.message },
-        { status: 500 }
-      );
+      return Response.json({ error: error.message }, { status: 500 });
     }
 
     const formatted = (data || []).map((poll) => {
@@ -33,6 +30,46 @@ export async function GET() {
   } catch (err: any) {
     return Response.json(
       { error: err.message || "Server error" },
+      { status: 500 }
+    );
+  }
+}
+
+export async function POST(req: Request) {
+  try {
+    const { question, options } = await req.json();
+
+    const cleanOptions = (options || []).filter((o: string) =>
+      o?.trim()
+    );
+
+    if (!question || cleanOptions.length < 2) {
+      return Response.json(
+        { error: "Invalid poll data" },
+        { status: 400 }
+      );
+    }
+
+    const { data, error } = await supabase
+      .from("polls")
+      .insert({
+        question,
+        options: cleanOptions, // 🔥 important
+      })
+      .select()
+      .single();
+
+    if (error) {
+      return Response.json(
+        { error: error.message },
+        { status: 500 }
+      );
+    }
+
+    return Response.json(data);
+  } catch (err: any) {
+    return Response.json(
+      { error: err.message || "Server crash" },
       { status: 500 }
     );
   }
