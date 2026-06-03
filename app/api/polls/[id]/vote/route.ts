@@ -2,10 +2,9 @@ import { supabase } from "@/lib/supabase";
 
 export async function POST(
   req: Request,
-  { params }: { params: Promise<{ id: string }> }
+  { params }: { params: { id: string } }
 ) {
-  try {
-    const { id: pollId } = await params;
+  const pollId = params.id;
 
     if (!pollId) {
       return Response.json(
