@@ -9,7 +9,7 @@ export async function POST(req: Request) {
     const { question } = await req.json();
 
     const response = await ai.models.generateContent({
-      model: "gemini-2.5-flash",
+      model: "gemini-2.0-flash",
       contents: `
 Improve the following question.
 Make it clear and grammatically correct.
