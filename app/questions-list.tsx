@@ -287,7 +287,7 @@ async function votePoll(pollId: string, optionIndex: number) {
           disabled={improving}
           className="rounded-md bg-purple-600 px-4 py-2 text-white hover:bg-purple-700"
           >
-          {improving ? "Improving..." : "✨ Improve"}
+          {improving ? "Improving..." : "Improve"}
         </button>
 
         <button
