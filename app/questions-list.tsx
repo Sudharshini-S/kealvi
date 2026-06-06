@@ -103,22 +103,32 @@ export default function QuestionsList({
 }
   
   async function submit() {
-    if (!draft.trim()) return;
+  if (!draft.trim()) return;
 
-    const res = await fetch("/api/questions", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ body: draft }),
-    });
+  const res = await fetch("/api/questions", {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({
+      body: draft,
+    }),
+  });
 
-    const data = await res.json();
-    if (!res.ok) {
-      alert(data.error);
-      return;
-    }
-    setQuestions((qs) => [{ ...created, votes: 0 }, ...qs]);
-    setDraft("");
+  const data = await res.json();
+
+  if (!res.ok) {
+    alert(data.error);
+    return;
   }
+
+  setQuestions((qs) => [
+    { ...data, votes: 0 },
+    ...qs,
+  ]);
+
+  setDraft("");
+}
 
   async function upvote(id: string) {
     const res = await fetch(`/api/questions/${id}/vote`, {
