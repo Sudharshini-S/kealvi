@@ -25,7 +25,7 @@ export async function getQuestionsPage(offset: number, limit: number) {
 export async function searchQuestions(q: string, limit: number) {
   const { data, error } = await supabase
     .from("questions")
-    .select("id, body, author, created_at, votes(count)")
+    .select("id, body, author, pinned, created_at, votes(count)")
     .textSearch("body", q, { type: "websearch", config: "english" })
     .order("pinned", { ascending: false })
     .limit(limit);
