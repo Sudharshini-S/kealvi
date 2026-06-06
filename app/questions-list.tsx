@@ -8,6 +8,7 @@ type Question = {
   body: string;
   author: string | null;
   votes: number;
+  pinned?: boolean;
 };
 
 type Poll = {
@@ -144,7 +145,31 @@ export default function QuestionsList({
       )
     );
   }
+async function pinQuestion(id: string) {
+  const res = await fetch(`/api/questions/${id}/pin`, {
+    method: "POST",
+  });
 
+  const data = await res.json();
+
+  if (!res.ok) {
+    alert(data.error);
+    return;
+  }
+
+  setQuestions((qs) =>
+    [...qs]
+      .map((q) =>
+        q.id === id
+          ? { ...q, pinned: data.pinned }
+          : q
+      )
+      .sort((a, b) => {
+        if (a.pinned === b.pinned) return 0;
+        return a.pinned ? -1 : 1;
+      })
+  );
+}  
   async function loadMore() {
     setLoading(true);
 
@@ -306,21 +331,39 @@ async function votePoll(pollId: string, optionIndex: number) {
       />
 
       <ul className="space-y-3">
-        {questions.map((q) => (
-          <li
-            key={q.id}
-            className="flex items-center gap-3 rounded-xl border border-white/10 bg-white/5 p-4 hover:bg-white/10"
-          >
-            <button
-              onClick={() => upvote(q.id)}
-              className="rounded-md border border-white/10 bg-white/10 px-3 py-1 font-mono"
-            >
-              ▲ {q.votes}
-            </button>
-            <span className="text-white">{q.body}</span>
-          </li>
-        ))}
-      </ul>
+  {questions.map((q) => (
+    <li
+      key={q.id}
+      className="flex items-center gap-3 rounded-xl border border-white/10 bg-white/5 p-4 hover:bg-white/10"
+    >
+      <button
+        onClick={() => upvote(q.id)}
+        className="rounded-md border border-white/10 bg-white/10 px-3 py-1 font-mono"
+      >
+        ▲ {q.votes}
+      </button>
+
+      <button
+        onClick={() => pinQuestion(q.id)}
+        className="rounded-md border border-yellow-500/20 bg-yellow-500/10 px-3 py-1"
+      >
+        {q.pinned ? "📌" : "📍"}
+      </button>
+
+      <div>
+        {q.pinned && (
+        <div className="text-xs text-yellow-400 mb-1">
+            Pinned
+        </div>
+        )}
+
+        <span className="text-white">
+          {q.body}
+        </span>
+      </div>
+    </li>
+  ))}
+</ul>
 
       {hasMore && (
         <button
