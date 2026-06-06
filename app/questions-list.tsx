@@ -111,8 +111,11 @@ export default function QuestionsList({
       body: JSON.stringify({ body: draft }),
     });
 
-    const created = await res.json();
-
+    const data = await res.json();
+    if (!res.ok) {
+      alert(data.error);
+      return;
+    }
     setQuestions((qs) => [{ ...created, votes: 0 }, ...qs]);
     setDraft("");
   }
