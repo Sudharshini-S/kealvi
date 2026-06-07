@@ -1,485 +1,244 @@
 "use client";
-
-import { useState, useEffect } from "react";
+import { useEffect, useState } from "react";
 import { getVoterId } from "@/lib/voter";
 
-type Question = {
-  id: string;
-  body: string;
-  author: string | null;
-  votes: number;
-  pinned?: boolean;
+type Question={
+    id:string;
+    body:string;
+    author:string;
+    pinned:boolean;
+    vote_count:number;
 };
 
-type Poll = {
-  id: string;
-  question: string;
-  options: string[];
-  voteCounts?: number[];
-  totalVotes?: number;
-};
+export default function QuestionsList(){
+    const [questions,setQuestions]=useState<Question[]>([]);
+    const [name,setName]=useState("");
+    const [question,setQuestion]=useState("");
+    const [search,setSearch]=useState("");
 
-export default function QuestionsList({
-  initialQuestions,
-  initialHasMore,
-}: {
-  initialQuestions: Question[];
-  initialHasMore: boolean;
-}) {
-  // ---------------- QUESTIONS ----------------
-  const [questions, setQuestions] = useState(initialQuestions);
-  const [draft, setDraft] = useState("");
-  const [query, setQuery] = useState("");
-  const [hasMore, setHasMore] = useState(initialHasMore);
-  const [loading, setLoading] = useState(false);
-  const [improving, setImproving] = useState(false);
-
-  // ---------------- POLLS ----------------
-  const [polls, setPolls] = useState<Poll[]>([]);
-  const [pollQuestion, setPollQuestion] = useState("");
-  const [pollOptions, setPollOptions] = useState(["", ""]);
-
-  const [hydrated, setHydrated] = useState(false);
-
-  useEffect(() => {
-    setHydrated(true);
-  }, []);
-
-  // ---------------- QUESTIONS FETCH ----------------
-  useEffect(() => {
-    const id = setTimeout(async () => {
-      const url = query
-        ? `/api/questions?q=${encodeURIComponent(query)}`
-        : `/api/questions`;
-
-      const res = await fetch(url);
-      const data = await res.json();
-
-      setQuestions(data.questions);
-      setHasMore(data.hasMore);
-    }, 300);
-
-    return () => clearTimeout(id);
-  }, [query]);
-
-  // ---------------- POLLS FETCH ----------------
-  useEffect(() => {
-    fetch("/api/polls")
-      .then((r) => r.json())
-      .then((d) => setPolls(d.polls || []));
-  }, []);
-
-  // ---------------- QUESTION ACTIONS ----------------
-  async function improveQuestion() {
-  if (!draft.trim()) return;
-
-  try {
-    setImproving(true);
-
-    const res = await fetch("/api/improve-question", {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({
-        question: draft,
-      }),
-    });
-
-    const data = await res.json();
-
-    if (!res.ok) {
-      alert(data.error || "AI failed");
-      return;
-    }
-
-    setDraft(data.improved);
-  } catch (err) {
-    console.error(err);
-    alert("Failed to improve question");
-  } finally {
-    setImproving(false);
-  }
-}
-  
-  async function submit() {
-  if (!draft.trim()) return;
-
-  const res = await fetch("/api/questions", {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-    },
-    body: JSON.stringify({
-      body: draft,
-    }),
-  });
-
-  const data = await res.json();
-
-  if (!res.ok) {
-    alert(data.error);
-    return;
-  }
-
-  setQuestions((qs) => [
-    { ...data, votes: 0 },
-    ...qs,
-  ]);
-
-  setDraft("");
-}
-
-  async function upvote(id: string) {
-    const res = await fetch(`/api/questions/${id}/vote`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ voterId: getVoterId() }),
-    });
-
-    const data = await res.json();
-
-    if (!res.ok) {
-      alert(data.error || "Something went wrong");
-      return;
-    }
-
-    setQuestions((qs) =>
-      qs.map((q) =>
-        q.id === id
-          ? {
-              ...q,
-              votes:
-                data.action === "added"
-                  ? q.votes + 1
-                  : Math.max(0, q.votes - 1),
-            }
-          : q
-      )
+    async function load(){
+    const res=await fetch(
+        "/api/questions?search="+search
     );
-  }
-async function pinQuestion(id: string) {
-  const res = await fetch(`/api/questions/${id}/pin`, {
-    method: "POST",
-  });
 
-  const data = await res.json();
+    const data=await res.json();
 
-  if (!res.ok) {
-    alert(data.error);
-    return;
-  }
+    console.log(
+        "QUESTIONS DATA:",
+        data
+    );
 
-  setQuestions((qs) =>
-    [...qs]
-      .map((q) =>
-        q.id === id
-          ? { ...q, pinned: data.pinned }
-          : q
-      )
-      .sort((a, b) => {
-        if (a.pinned === b.pinned) return 0;
-        return a.pinned ? -1 : 1;
-      })
-  );
-}  
-  async function loadMore() {
-    setLoading(true);
-
-    const res = await fetch(`/api/questions?offset=${questions.length}`);
-    const data = await res.json();
-
-    setQuestions((qs) => [...qs, ...data.questions]);
-    setHasMore(data.hasMore);
-
-    setLoading(false);
-  }
-
-  // ---------------- POLL CREATE (FIXED SAFE VERSION) ----------------
-  async function createPoll() {
-    if (!pollQuestion.trim()) return;
-
-    const res = await fetch("/api/polls", {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({
-        question: pollQuestion,
-        options: pollOptions.filter((o) => o.trim()),
-      }),
-    });
-
-    // 🔥 SAFE JSON HANDLING (FIX FOR YOUR ERROR)
-    const text = await res.text();
-
-    let data;
-    try {
-      data = JSON.parse(text);
-    } catch (err) {
-      console.error("❌ Invalid JSON from /api/polls:", text);
-      alert("Server error while creating poll");
-      return;
+    if(Array.isArray(data)){
+        setQuestions(data);
     }
-
-    if (!res.ok) {
-      alert(data?.error || "Failed to create poll");
-      return;
+    else{
+        setQuestions([]);
+        alert(data.error);
     }
-
-    setPolls((p) => [data, ...p]);
-    setPollQuestion("");
-    setPollOptions(["", ""]);
-  }
-
-  // ---------------- POLL VOTE ----------------
-// ---------------- POLL VOTE ----------------
-async function votePoll(pollId: string, optionIndex: number) {
-  const res = await fetch(`/api/polls/${pollId}/vote`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({
-      voterId: getVoterId(),
-      optionIndex,
-    }),
-  });
-
-  const data = await res.json();
-
-  if (!res.ok) {
-    alert(data.error || "Poll vote failed");
-    return;
-  }
-
-  setPolls((prev) =>
-    prev.map((p) => {
-      if (p.id !== pollId) return p;
-
-      const voteCounts = [...(p.voteCounts || [])];
-      const totalVotes = p.totalVotes || 0;
-
-      if (data.action === "added") {
-        voteCounts[optionIndex] =
-          (voteCounts[optionIndex] || 0) + 1;
-
-        return {
-          ...p,
-          voteCounts,
-          totalVotes: totalVotes + 1,
-        };
-      }
-
-      if (data.action === "removed") {
-        voteCounts[optionIndex] = Math.max(
-          0,
-          (voteCounts[optionIndex] || 0) - 1
-        );
-
-        return {
-          ...p,
-          voteCounts,
-          totalVotes: Math.max(0, totalVotes - 1),
-        };
-      }
-
-      if (data.action === "switched") {
-        const previous = data.previousOption;
-
-        voteCounts[previous] = Math.max(
-          0,
-          (voteCounts[previous] || 0) - 1
-        );
-
-        voteCounts[optionIndex] =
-          (voteCounts[optionIndex] || 0) + 1;
-
-        return {
-          ...p,
-          voteCounts,
-        };
-      }
-
-      return p;
-    })
-  );
 }
 
-  // ---------------- UI ----------------
-  return (
-    <div className="space-y-6">
-      <p className="text-sm text-gray-400">
-        {hydrated ? "Interactive ✓" : "Loading interactivity…"}
-      </p>
+    useEffect(()=>{
+        load();
+    },[search]);
 
-      {/* QUESTIONS */}
-      <div className="flex gap-2">
+    async function improve(){
+        if(!question)return;
+        const res=await fetch(
+            "/api/improve-question",
+            {
+                method:"POST",
+                headers:{
+                    "Content-Type":"application/json"
+                },
+                body:JSON.stringify({
+                    question
+                })
+            }
+        );
+        const data=await res.json();
+        if(data.success){
+            setQuestion(data.question);
+        }
+    }
+
+    async function ask(){
+    if(!name || !question){
+        alert("Enter name and question");
+        return;
+    }
+
+    const formattedName=
+    name
+    .trim()
+    .toLowerCase()
+    .replace(
+        /\b\w/g,
+        (char)=>char.toUpperCase()
+    );
+
+    const res=await fetch(
+        "/api/questions",
+        {
+            method:"POST",
+            headers:{
+                "Content-Type":"application/json"
+            },
+            body:JSON.stringify({
+                author:formattedName,
+                body:question
+            })
+        }
+    );
+
+    const data=await res.json();
+
+    if(res.ok){
+        setQuestion("");
+        await load();
+    }
+    else{
+        alert(data.error);
+    }
+}
+
+    async function vote(id:string,type:number){
+        await fetch(
+            `/api/questions/${id}/vote`,
+            {
+                method:"POST",
+                headers:{
+                    "Content-Type":"application/json"
+                },
+                body:JSON.stringify({
+                    voterId:getVoterId(),
+                    type:type
+                })
+            }
+        );
+        await load();
+    }
+
+    async function pin(id:string){
+        const res=await fetch(
+            `/api/questions/${id}/pin`,
+            {
+                method:"POST"
+            }
+        );
+        const data=await res.json();
+        if(!res.ok){
+            alert(data.error);
+        }
+        load();
+    }
+
+    return(
+        <div className="max-w-4xl mx-auto space-y-6">
+            <div>
+                <h1 className="text-2xl font-bold">
+                    Live Q&A
+                </h1>
+                <p className="text-gray-400 mt-4">
+                    Interactive ✓
+                </p>
+            </div>
+
+            <div className="bg-[#0d1117] border border-[#252b33] rounded-xl p-5 space-y-4">
+
+    <input
+        value={name}
+        onChange={(e)=>setName(e.target.value)}
+        placeholder="Your name"
+        className="w-full bg-black border border-[#30363d] rounded-lg p-4 outline-none"
+    />
+
+    <div className="flex gap-3">
+
         <input
-          value={draft}
-          onChange={(e) => setDraft(e.target.value)}
-          placeholder="Ask a question..."
-          className="flex-1 rounded-md border border-white/10 bg-white/5 px-3 py-2 text-white outline-none"
+            value={question}
+            onChange={(e)=>setQuestion(e.target.value)}
+            placeholder="Ask a question"
+            className="flex-1 bg-black border border-[#30363d] rounded-lg px-4 outline-none"
         />
 
         <button
-          onClick={improveQuestion}
-          disabled={improving}
-          className="rounded-md bg-purple-600 px-4 py-2 text-white hover:bg-purple-700"
-          >
-          {improving ? "Improving..." : "Improve"}
-        </button>
-
-        <button
-            onClick={submit}
-            className="rounded-md border border-white/10 bg-white/5 px-4 py-2 hover:bg-white/10"
-          >
-          Ask
-        </button>
-      </div>
-
-      <input
-        value={query}
-        onChange={(e) => setQuery(e.target.value)}
-        placeholder="Search questions..."
-        className="w-full rounded-md border border-white/10 bg-white/5 px-3 py-2 text-white outline-none"
-      />
-
-      <ul className="space-y-3">
-  {questions.map((q) => (
-    <li
-      key={q.id}
-      className="flex items-center gap-3 rounded-xl border border-white/10 bg-white/5 p-4 hover:bg-white/10"
-    >
-      <button
-        onClick={() => upvote(q.id)}
-        className="rounded-md border border-white/10 bg-white/10 px-3 py-1 font-mono"
-      >
-        ▲ {q.votes}
-      </button>
-
-      <button
-        onClick={() => pinQuestion(q.id)}
-        className="rounded-md border border-yellow-500/20 bg-yellow-500/10 px-3 py-1"
-      >
-        {q.pinned ? "📌" : "📍"}
-      </button>
-
-      <div>
-        {q.pinned && (
-        <div className="text-xs text-yellow-400 mb-1">
-            Pinned
-        </div>
-        )}
-
-        <span className="text-white">
-          {q.body}
-        </span>
-      </div>
-    </li>
-  ))}
-</ul>
-
-      {hasMore && (
-        <button
-          onClick={loadMore}
-          disabled={loading}
-          className="rounded-md border border-white/10 bg-white/5 px-4 py-2"
+            onClick={improve}
+            className="px-10 py-3 bg-[#111418] border border-[#30363d] rounded-lg"
         >
-          {loading ? "Loading..." : "Load More"}
+            Improve
         </button>
-      )}
 
-      {/* POLLS */}
-      <div className="mt-10 space-y-4">
-        <h2 className="text-xl font-medium">Polls</h2>
+        <button
+            onClick={ask}
+            className="px-10 py-3 bg-[#111418] border border-[#30363d] rounded-lg"
+        >
+            Ask
+        </button>
 
-        {/* CREATE POLL */}
-        <div className="space-y-2 rounded-xl border border-white/10 bg-white/5 p-4">
-          <input
-            value={pollQuestion}
-            onChange={(e) => setPollQuestion(e.target.value)}
-            placeholder="Poll question..."
-            className="w-full rounded-md border border-white/10 bg-white/5 px-3 py-2 text-white outline-none"
-          />
-
-          {pollOptions.map((opt, i) => (
-            <input
-              key={i}
-              value={opt}
-              onChange={(e) => {
-                const copy = [...pollOptions];
-                copy[i] = e.target.value;
-                setPollOptions(copy);
-              }}
-              placeholder={`Option ${i + 1}`}
-              className="w-full mt-2 rounded-md border border-white/10 bg-white/5 px-3 py-2 text-white outline-none"
-            />
-          ))}
-
-          <button
-            onClick={() => setPollOptions([...pollOptions, ""])}
-            className="text-sm text-blue-400"
-          >
-            + Add option
-          </button>
-
-          <button
-            onClick={createPoll}
-            className="block mt-2 rounded-md bg-blue-500 px-4 py-2 text-white"
-          >
-            Create Poll
-          </button>
-        </div>
-
-        {/* POLL LIST */}
-        {polls.map((poll) => {
-          const total = poll.totalVotes || 0;
-
-          return (
-            <div
-              key={poll.id}
-              className="rounded-xl border border-white/10 bg-white/5 p-4 space-y-3"
-            >
-              <p className="font-medium text-white">{poll.question}</p>
-
-              <p className="text-xs text-gray-400">
-                {total} vote{total !== 1 ? "s" : ""}
-              </p>
-
-              <div className="space-y-2">
-                {poll.options.map((opt, i) => {
-                  const count = poll.voteCounts?.[i] || 0;
-                  const percent =
-                    total > 0 ? Math.round((count / total) * 100) : 0;
-
-                  return (
-                    <button
-                      key={i}
-                      onClick={() => votePoll(poll.id, i)}
-                      className="w-full text-left p-2 rounded-md hover:bg-white/10"
-                    >
-                      <div className="flex justify-between text-sm text-white">
-                        <span>{opt}</span>
-                        <span className="text-gray-400">{percent}%</span>
-                      </div>
-
-                      <div className="mt-1 h-2 w-full bg-white/10 rounded-full overflow-hidden">
-                        <div
-                          className="h-full bg-blue-500"
-                          style={{ width: `${percent}%` }}
-                        />
-                      </div>
-
-                      <div className="text-xs text-gray-500 mt-1">
-                        {count} vote{count !== 1 ? "s" : ""}
-                      </div>
-                    </button>
-                  );
-                })}
-              </div>
-            </div>
-          );
-        })}
-      </div>
     </div>
-  );
+
+</div>
+
+            <input
+                value={search}
+                onChange={(e)=>setSearch(e.target.value)}
+                placeholder="Search"
+                className="w-full bg-[#111418] border border-[#252b33] rounded-lg p-3"
+            />
+
+            <div className="space-y-4">
+                {questions.map((q)=>(
+                    <div
+                        key={q.id}
+                        className="bg-[#111418] border border-[#252b33] rounded-xl p-5"
+                    >
+                        <div className="flex justify-between">
+                            <p className="text-yellow-400 text-sm">
+                                {q.pinned?"Pinned":""}
+                            </p>
+
+                            <p className="text-gray-400 text-sm">
+                                {q.author}
+                            </p>
+                        </div>
+
+                        <div className="flex items-center gap-10 mt-3">
+
+                            <div className="flex flex-col items-center">
+                                <button
+                                    onClick={()=>vote(q.id,1)}
+                                    className="text-xl"
+                                >
+                                    ▲
+                                </button>
+
+                                <span>
+                                    {q.vote_count}
+                                </span>
+
+                                <button
+                                    onClick={()=>vote(q.id,-1)}
+                                    className="text-xl"
+                                >
+                                    ▼
+                                </button>
+                            </div>
+
+                            <button
+                                onClick={()=>pin(q.id)}
+                                className="bg-[#302c10] px-5 py-2 rounded"
+                            >
+                                📌
+                            </button>
+
+                            <h2 className="text-lg font-medium">
+                                {q.body}
+                            </h2>
+
+                        </div>
+                    </div>
+                ))}
+            </div>
+        </div>
+    );
 }

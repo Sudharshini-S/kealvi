@@ -1,42 +1,89 @@
-import { supabase } from "@/lib/supabase";
+import { supabase } from "./supabase";
 
-export async function getQuestionsPage(offset: number, limit: number) {
-  const { data, error } = await supabase
-  .from("questions")
-  .select("id, body, author, pinned, created_at, votes(count)")
-  .order("pinned", { ascending: false })
-  .order("created_at", { ascending: false }) 
-  .range(offset, offset + limit); // inclusive → asks for limit + 1 rows
+export async function getQuestions(search=""){
+    let query=supabase
+    .from("questions")
+    .select(`
+        *,
+        votes(
+            id
+        )
+    `);
 
-  if (error) throw new Error(error.message);
+    if(search){
+        query=query.ilike(
+            "body",
+            `%${search}%`
+        );
+    }
 
-  const rows = (data ?? []).map((q) => ({
-  id: q.id,
-  body: q.body,
-  author: q.author,
-  pinned: q.pinned,
-  votes: q.votes?.[0]?.count ?? 0,
-}));
+    const {data,error}=await query;
 
-  const hasMore = rows.length > limit; // got the extra row? there's a next page
-  return { questions: rows.slice(0, limit), hasMore };
+    if(error){
+        throw error;
+    }
+
+    const result=(data || []).map((q:any)=>({
+        ...q,
+        vote_count:q.votes?q.votes.length:0
+    }));
+
+    return result.sort((a:any,b:any)=>{
+        if(a.pinned!==b.pinned){
+            return Number(b.pinned)-Number(a.pinned);
+        }
+        return b.vote_count-a.vote_count;
+    });
 }
 
-export async function searchQuestions(q: string, limit: number) {
-  const { data, error } = await supabase
+export async function createQuestion(
+body:string,
+author:string
+){
+    const cleanQuestion=
+    body
+    .trim()
+    .toLowerCase()
+    .replace(/\s+/g," ");
+
+    const {data:questions,error:checkError}=await supabase
     .from("questions")
-    .select("id, body, author, pinned, created_at, votes(count)")
-    .textSearch("body", q, { type: "websearch", config: "english" })
-    .order("pinned", { ascending: false })
-    .limit(limit);
+    .select("body");
 
-  if (error) throw new Error(error.message);
+    if(checkError){
+        throw checkError;
+    }
 
-  return (data ?? []).map((row) => ({
-  id: row.id,
-  body: row.body,
-  author: row.author,
-  pinned: row.pinned,
-  votes: row.votes?.[0]?.count ?? 0,
-}));
+    const duplicate=
+    questions?.some(
+        (q:any)=>
+        q.body
+        .trim()
+        .toLowerCase()
+        .replace(/\s+/g," ")
+        ===
+        cleanQuestion
+    );
+
+    if(duplicate){
+        throw new Error(
+            "This question already exists"
+        );
+    }
+
+    const {data,error}=await supabase
+    .from("questions")
+    .insert({
+        body:
+        body.trim(),
+        author
+    })
+    .select()
+    .single();
+
+    if(error){
+        throw error;
+    }
+
+    return data;
 }

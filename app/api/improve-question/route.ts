@@ -1,32 +1,48 @@
 import { GoogleGenAI } from "@google/genai";
 
 const ai = new GoogleGenAI({
-  apiKey: process.env.GEMINI_API_KEY,
+    apiKey: process.env.GEMINI_API_KEY
 });
 
-export async function POST(req: Request) {
-  try {
-    const { question } = await req.json();
+export async function POST(req: Request){
 
-    const response = await ai.models.generateContent({
-      model: "gemini-2.5-flash",
-      contents: `
-Improve the following question.
-Make it clear and grammatically correct.
-Return ONLY the improved question.
+    try{
 
-Question:
-${question}
-`,
-    });
+        const { question } = await req.json();
 
-    return Response.json({
-      improved: response.text,
-    });
-  } catch (error: any) {
-    return Response.json(
-      { error: error.message },
-      { status: 500 }
-    );
-  }
+        const result = await ai.models.generateContent({
+            model:"gemini-2.5-flash",
+            contents:
+            `
+            Rewrite this question clearly.
+            Return only the improved question.
+
+            ${question}
+            `
+        });
+
+        return Response.json({
+            success:true,
+            question:result.text
+        });
+
+    }
+    catch(error:any){
+
+        console.log(
+            "GEMINI ERROR FULL:",
+            error
+        );
+
+        return Response.json(
+            {
+                success:false,
+                error:error.message
+            },
+            {
+                status:500
+            }
+        );
+
+    }
 }

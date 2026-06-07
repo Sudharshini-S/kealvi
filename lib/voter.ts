@@ -1,8 +1,19 @@
-export function getVoterId(): string {
-  let id = localStorage.getItem("voter_id");
-  if (!id) {
-    id = crypto.randomUUID();
-    localStorage.setItem("voter_id", id);
-  }
-  return id;
+export function getVoterId(){
+    if(typeof window === "undefined"){
+        return "";
+    }
+
+    let id =
+    localStorage.getItem("voterId");
+    if(!id){
+        id =
+        crypto.randomUUID();
+
+        localStorage.setItem(
+            "voterId",
+            id
+        );
+    }
+    return id;
+
 }

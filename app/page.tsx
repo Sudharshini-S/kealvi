@@ -1,19 +1,114 @@
+"use client";
+import { useState } from "react";
 import QuestionsList from "./questions-list";
-import { getQuestionsPage } from "@/lib/questions";
+import PollsList from "./polls-list";
+import Board from "./board";
+import Reports from "./reports";
+import Alerts from "./alerts";
 
-// Render on every request (don't cache/prerender) so new questions show up.
-export const dynamic = "force-dynamic";
+export default function Home(){
 
-const PAGE_SIZE = 10;
+const [tab,setTab]=useState("Q&A");
 
-// Server component — runs only on the server, awaits the data, renders to HTML.
-export default async function Page() {
-  const { questions, hasMore } = await getQuestionsPage(0, PAGE_SIZE);
+const tabs=[
+    "Q&A",
+    "Polls",
+    "Leader Board",
+    "Reports",
+    "Alerts"
+];
 
-  return (
-    <main className="mx-auto max-w-2xl p-6">
-      <h1 className="mb-4 text-2xl font-medium">Live Q&amp;A</h1>
-      <QuestionsList initialQuestions={questions} initialHasMore={hasMore} />
+return(
+<div className="min-h-screen bg-black text-white">
+
+    <div className="bg-black px-6 py-5">
+
+    <div className="max-w-6xl mx-auto">
+
+        <div className="bg-[#0d1117] border border-[#252b33] rounded-xl px-8 py-5 flex items-center justify-between">
+
+            <h1 className="text-4xl font-bold tracking-wide">
+                Kealvi
+            </h1>
+
+
+            <div className="flex gap-3">
+
+                {
+                tabs.map((item)=>(
+
+                    <button
+                        key={item}
+                        onClick={()=>
+                            setTab(item)
+                        }
+                        className={
+                        tab===item
+                        ?
+                        "px-5 py-2 rounded-lg bg-blue-600 text-white"
+                        :
+                        "px-5 py-2 rounded-lg text-gray-400 hover:text-white"
+                        }
+                    >
+
+                        {item}
+
+                    </button>
+
+                ))
+                }
+
+            </div>
+
+        </div>
+
+
+        <div className="mt-5 inline-flex items-center gap-2 bg-[#111418] border border-[#252b33] rounded-full px-5 py-2 text-blue-400">
+
+            <span>
+                ●
+            </span>
+
+            <span>
+                Live now
+            </span>
+
+        </div>
+
+    </div>
+
+</div>
+
+
+    <main className="max-w-6xl mx-auto px-6 py-10">
+
+        {
+            tab==="Q&A" &&
+            <QuestionsList/>
+        }
+
+        {
+            tab==="Polls" &&
+            <PollsList/>
+        }
+
+        {
+            tab==="Leader Board" &&
+            <Board/>
+        }
+
+        {
+            tab==="Reports" &&
+            <Reports/>
+        }
+
+        {
+            tab==="Alerts" &&
+            <Alerts/>
+        }
+
     </main>
-  );
+
+</div>
+);
 }

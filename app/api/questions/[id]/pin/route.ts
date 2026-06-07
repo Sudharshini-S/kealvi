@@ -1,55 +1,78 @@
 import { supabase } from "@/lib/supabase";
 
 export async function POST(
-  req: Request,
-  { params }: { params: Promise<{ id: string }> }
-) {
-  const { id } = await params;
+req:Request,
+{params}:{params:Promise<{id:string}>}
+){
+    try{
+        const {id}=await params;
 
-  const { data: question } = await supabase
-    .from("questions")
-    .select("pinned")
-    .eq("id", id)
-    .single();
+        const {data:question,error}=await supabase
+        .from("questions")
+        .select("pinned")
+        .eq("id",id)
+        .single();
 
-  if (!question) {
-    return Response.json(
-      { error: "Question not found" },
-      { status: 404 }
-    );
-  }
+        if(error){
+            throw error;
+        }
 
-  // Limit to 2 pinned questions
-  const { count } = await supabase
-    .from("questions")
-    .select("*", {
-      count: "exact",
-      head: true,
-    })
-    .eq("pinned", true);
+        if(question.pinned){
 
-  if (!question.pinned && (count ?? 0) >= 2) {
-    return Response.json(
-      { error: "Only 2 questions can be pinned" },
-      { status: 400 }
-    );
-  }
+            await supabase
+            .from("questions")
+            .update({
+                pinned:false
+            })
+            .eq("id",id);
 
-  const { data, error } = await supabase
-    .from("questions")
-    .update({
-      pinned: !question.pinned,
-    })
-    .eq("id", id)
-    .select()
-    .single();
+            return Response.json({
+                success:true,
+                action:"unpinned"
+            });
+        }
 
-  if (error) {
-    return Response.json(
-      { error: error.message },
-      { status: 500 }
-    );
-  }
+        const {count}=await supabase
+        .from("questions")
+        .select("*",{
+            count:"exact",
+            head:true
+        })
+        .eq("pinned",true);
 
-  return Response.json(data);
+        if((count || 0)>=3){
+
+            return Response.json(
+                {
+                    error:"Only 3 questions can be pinned"
+                },
+                {
+                    status:400
+                }
+            );
+        }
+
+        await supabase
+        .from("questions")
+        .update({
+            pinned:true
+        })
+        .eq("id",id);
+
+        return Response.json({
+            success:true,
+            action:"pinned"
+        });
+    }
+    catch(error:any){
+
+        return Response.json(
+            {
+                error:error.message
+            },
+            {
+                status:500
+            }
+        );
+    }
 }
