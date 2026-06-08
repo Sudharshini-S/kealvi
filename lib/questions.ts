@@ -46,33 +46,46 @@ body
 .trim()
 .toLowerCase()
 .replace(
-    /[^a-z0-9 ]/g,
+    /[^a-z0-9]/g,
     ""
 );
 
-const {data,error}=
-await supabase
+const {data:existing}=await supabase
+.from("questions")
+.select("id")
+.eq(
+    "normalized_body",
+    normalized
+)
+.maybeSingle();
+
+
+if(existing){
+    throw new Error(
+        "Question already exists"
+    );
+}
+
+
+const {data,error}=await supabase
 .from("questions")
 .insert({
-    body:body.trim(),
-    normalized_body:normalized,
+    body:
+    body.trim(),
+
+    normalized_body:
+    normalized,
+
     author
 })
 .select()
 .single();
 
+
 if(error){
-
-    if(
-        error.code==="23505"
-    ){
-        throw new Error(
-            "Question already exists"
-        );
-    }
-
     throw error;
 }
+
 
 return data;
 
