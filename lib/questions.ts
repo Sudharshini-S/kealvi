@@ -40,50 +40,45 @@ export async function createQuestion(
 body:string,
 author:string
 ){
-    const cleanQuestion=
-    body
-    .trim()
-    .toLowerCase()
-    .replace(/\s+/g," ");
 
-    const {data:questions,error:checkError}=await supabase
-    .from("questions")
-    .select("body");
+const cleanBody=
+body.trim().toLowerCase();
 
-    if(checkError){
-        throw checkError;
-    }
+const {data:existing,error:checkError}=
+await supabase
+.from("questions")
+.select("id")
+.ilike(
+    "body",
+    cleanBody
+)
+.limit(1);
 
-    const duplicate=
-    questions?.some(
-        (q:any)=>
-        q.body
-        .trim()
-        .toLowerCase()
-        .replace(/\s+/g," ")
-        ===
-        cleanQuestion
+if(checkError){
+    throw checkError;
+}
+
+if(existing.length>0){
+    throw new Error(
+        "Question already exists"
     );
+}
 
-    if(duplicate){
-        throw new Error(
-            "This question already exists"
-        );
-    }
+const {data,error}=
+await supabase
+.from("questions")
+.insert({
+    body:
+    body.trim(),
+    author
+})
+.select()
+.single();
 
-    const {data,error}=await supabase
-    .from("questions")
-    .insert({
-        body:
-        body.trim(),
-        author
-    })
-    .select()
-    .single();
+if(error){
+    throw error;
+}
 
-    if(error){
-        throw error;
-    }
+return data;
 
-    return data;
 }
