@@ -41,41 +41,36 @@ body:string,
 author:string
 ){
 
-const cleanBody=
-body.trim().toLowerCase();
-
-const {data:existing,error:checkError}=
-await supabase
-.from("questions")
-.select("id")
-.ilike(
-    "body",
-    cleanBody
-)
-.limit(1);
-
-if(checkError){
-    throw checkError;
-}
-
-if(existing.length>0){
-    throw new Error(
-        "Question already exists"
-    );
-}
+const normalized=
+body
+.trim()
+.toLowerCase()
+.replace(
+    /[^a-z0-9 ]/g,
+    ""
+);
 
 const {data,error}=
 await supabase
 .from("questions")
 .insert({
-    body:
-    body.trim(),
+    body:body.trim(),
+    normalized_body:normalized,
     author
 })
 .select()
 .single();
 
 if(error){
+
+    if(
+        error.code==="23505"
+    ){
+        throw new Error(
+            "Question already exists"
+        );
+    }
+
     throw error;
 }
 
